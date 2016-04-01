@@ -18,82 +18,76 @@ import CcURL
 import CJSONC
 
 class Translator {
+    let BUFSIZE = 1024
 
-  let BUFSIZE = 1024
-
-  init() {
-  }
-
-  func translate(text:String, from:String, to:String,
-                        completion:(translation:String?, error:NSError?) -> Void) {
-
-    let curl = curl_easy_init()
-
-    guard curl != nil else {
-      completion(translation:nil,
-                 error:NSError(domain:"translator", code:1, userInfo:nil))
-      return
+    init() {
     }
 
-    let escapedText = curl_easy_escape(curl, text, Int32(strlen(text)))
+    func translate(text:String, from:String, to:String,
+                   completion:(translation:String?, error:NSError?) -> Void) {
 
-    guard escapedText != nil else {
-      completion(translation:nil,
-                 error:NSError(domain:"translator", code:2, userInfo:nil))
-      return
-    }
-    
-    let langPair = from + "%7c" + to
-    let wgetCommand = "wget -qO- http://api.mymemory.translated.net/get\\?q\\=" + String.fromCString(escapedText)! + "\\&langpair\\=" + langPair
-    
-    let pp      = popen(wgetCommand, "r")
-    var buf     = [CChar](count:BUFSIZE, repeatedValue:CChar(0))
-    
-    var response:String = ""
-    while fgets(&buf, Int32(BUFSIZE), pp) != nil {
-      response = response + String.fromCString(buf)!
-    }
-    
-    let translation = getTranslatedText(response)
+        let curl = curl_easy_init()
 
-    guard translation.error == nil else {
-      completion(translation:nil, error:translation.error)
-      return
-    }
+        guard curl != nil else {
+            completion(translation:nil,
+                       error:NSError(domain:"translator", code:1, userInfo:nil))
+            return
+        }
 
-    completion(translation:translation.translation, error:nil)
-  }
+        let escapedText = curl_easy_escape(curl, text, Int32(strlen(text)))
 
-  private func getTranslatedText(jsonString:String) -> (error:NSError?, translation:String?) {
+        guard escapedText != nil else {
+            completion(translation:nil,
+                       error:NSError(domain:"translator", code:2, userInfo:nil))
+            return
+        }
 
-    let obj = json_tokener_parse(jsonString)
+        let langPair = from + "%7c" + to
+        let wgetCommand = "wget -qO- http://api.mymemory.translated.net/get\\?q\\=" + String(cString:escapedText) + "\\&langpair\\=" + langPair
 
-    guard obj != nil else {
-      return (NSError(domain:"translator", code:3, userInfo:nil),
-             nil)
-    }
+        let pp  = popen(wgetCommand, "r")
+        var buf = [CChar](repeating:CChar(0), count:BUFSIZE)
 
-    let responseData = json_object_object_get(obj, "responseData")
+        var response:String = ""
+        while fgets(&buf, Int32(BUFSIZE), pp) != nil {
+            response = response + String(cString:buf)
+        }
 
-    guard responseData != nil else {
-      return (NSError(domain:"translator", code:3, userInfo:nil),
-              nil)
+        let translation = getTranslatedText(response)
+
+        guard translation.error == nil else {
+            completion(translation:nil, error:translation.error)
+            return
+        }
+
+        completion(translation:translation.translation, error:nil)
     }
 
-    let translatedTextObj = json_object_object_get(responseData,
-                                                   "translatedText")
+    private func getTranslatedText(jsonString:String) -> (error:NSError?, translation:String?) {
+        let obj = json_tokener_parse(jsonString)
 
-    guard translatedTextObj != nil else {
-      return (NSError(domain:"translator", code:3, userInfo:nil),
-              nil)
+        guard obj != nil else {
+            return (NSError(domain:"translator", code:3, userInfo:nil),
+                   nil)
+        }
+
+        let responseData = json_object_object_get(obj, "responseData")
+
+        guard responseData != nil else {
+            return (NSError(domain:"translator", code:3, userInfo:nil),
+                   nil)
+        }
+
+        let translatedTextObj = json_object_object_get(responseData,
+                                                       "translatedText")
+
+        guard translatedTextObj != nil else {
+            return (NSError(domain:"translator", code:3, userInfo:nil),
+                   nil)
+        }
+
+        let translatedTextStr = json_object_get_string(translatedTextObj)
+
+        return (nil, String(cString:translatedTextStr))
     }
-
-    let translatedTextStr = json_object_get_string(translatedTextObj)
-
-    return (nil, String.fromCString(translatedTextStr)!)
-           
-  }
-
 }
-
-
