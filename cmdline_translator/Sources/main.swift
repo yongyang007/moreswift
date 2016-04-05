@@ -18,6 +18,13 @@ import Glibc
 let interpreter = CommandInterpreter()
 let translator  = Translator()
 
+// access command line arguments
+let arguments = Array(Process.arguments[1..<Process.arguments.count])
+let commands = interpreter.parseArguments(arguments)
+for command in commands {
+    interpreter.doCommand(command)
+}
+
 // Listen for events to translate
 nc.addObserverForName(INPUT_NOTIFICATION, object:nil, queue:nil) {
   (_) in

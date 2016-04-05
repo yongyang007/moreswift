@@ -27,95 +27,128 @@ case Quit
 
 // Structs
 struct Command {
-  var type:CommandType
-  var data:String
+    var type:CommandType
+    var data:String
 }
 
 // Classes
 class CommandInterpreter {
 
-  // Read-only computed property
-  var prompt:String {
-    return "\(translationCommand.from)->\(translationCommand.to)"
-  }
+    // Read-only computed property
+    var prompt:String {
+        return "\(translationCommand.from)->\(translationCommand.to)"
+    }
 
-  // Class constant
-  let delim:Character = "\n"
+    // Class constant
+    let delim:Character = "\n"
+    let hyphen = "-"
 
-  init() {
-  }
+    init(){
+    }
 
-  func start() {
-    let readThread = NSThread(){
-      var input:String    = ""
-      
-      print("To set input language, type 'from LANG'")
-      print("To set output language, type 'to LANG'")
-      print("Type 'quit' to exit")
-      self.displayPrompt()
+    func start() {
+        let readThread = NSThread() {
+            var input:String = ""
 
-      while true {
-        let c = Character(UnicodeScalar(UInt32(fgetc(stdin))))
-        if c == self.delim {
-          let command = self.parseInput(input)
-          self.doCommand(command)
-          input = "" // Clear input
-          self.displayPrompt()
-        } else {
-          input.append(c)
+            print("To set input language, type 'from LANG'")
+            print("To set output language, type 'to LANG'")
+            print("Type 'quit' to exit")
+            self.displayPrompt()
+
+            while true {
+                let c = Character(UnicodeScalar(UInt32(fgetc(stdin))))
+                if c == self.delim {
+                    let command = self.parseInput(input)
+                    self.doCommand(command)
+                    input = "" // Clear input
+                    self.displayPrompt()
+                } else {
+                    input.append(c)
+                }
+            }
         }
-      }
+
+        readThread.start()
     }
-    
-    readThread.start()
-  }
 
-  func displayPrompt() {
-    print("\(self.prompt):  ", terminator:"")
-  }
-
-  func parseInput(input:String) -> Command {
-    var commandType:CommandType
-    var commandData:String = ""
-
-    // Splitting a string
-    let tokens = input.characters.split{$0 == " "}.map(String.init)
-
-    // guard statement to validate that there are tokens
-    guard tokens.count > 0 else {
-      return Command(type:CommandType.None, data:"")
+    func displayPrompt() {
+        print("\(self.prompt): ", terminator:"")
     }
-    
-    switch tokens[0] {
-    case "quit":
-      commandType = .Quit
-    case "from":
-      commandType = .SetFrom
-      commandData = tokens[1]
-    case "to":
-      commandType = .SetTo
-      commandData = tokens[1]
-    default:
-      commandType = .Translate
-      commandData = input
-    }
-    return Command(type:commandType, data:commandData)
-  }
 
-  func doCommand(command:Command) {
-    switch command.type {
-    case .Quit:
-      exit(0)
-    case .SetFrom:
-      translationCommand.from = command.data
-    case .SetTo:
-      translationCommand.to   = command.data
-    case .Translate:
-      translationCommand.text = command.data
-      nc.postNotificationName(INPUT_NOTIFICATION, object:nil)
-    case .None:
-      break
+    func parseInput(input:String) -> Command {
+        var commandType:CommandType
+        var commandData:String = ""
+
+        // Splitting a string
+        let tokens = input.characters.split{$0 == " "}.map(String.init)
+
+        // guard statment to validate that are tokens
+        guard tokens.count > 0 else {
+            return Command(type:CommandType.None, data:"")
+        }
+
+        switch tokens[0] {
+        case "quit":
+            commandType = .Quit
+        case "from":
+            commandType = .SetFrom
+            commandData = tokens[1]
+        case "to":
+            commandType = .SetTo
+            commandData = tokens[1]
+        default:
+            commandType = .Translate
+            commandData = input
+        }
+        return Command(type:commandType, data:commandData)
     }
-  }
+
+    func doCommand(command:Command) {
+        switch command.type {
+        case .Quit:
+            exit(0)
+        case .SetFrom:
+            translationCommand.from = command.data
+        case .SetTo:
+            translationCommand.to = command.data
+        case .Translate:
+            translationCommand.text = command.data
+            nc.postNotificationName(INPUT_NOTIFICATION, object:nil)
+        case .None:
+            break
+        }
+    }
+
+    func parseArguments(arguments:[String]) -> [Command] {
+        var commands = [Command]()
+        for (index, value) in arguments.enumerated() {
+            if index + 1 < arguments.count {
+                let command = parseArgument(value, value:arguments[index + 1])
+                if command.type != .None {
+                    commands.append(command)
+                }
+            }
+        }
+        return commands
+    }
+
+    func parseArgument(key:String, value:String) -> Command {
+        var commandType:CommandType
+        var commandData = ""
+
+        guard key.hasPrefix(self.hyphen) && !value.hasPrefix(self.hyphen) else {
+            return Command(type:.None, data:"")
+        }
+        switch key {
+        case "-from":
+            commandType = .SetFrom
+            commandData = value
+        case "-to":
+            commandType = .SetTo
+            commandData = value
+        default:
+            commandType = .None
+        }
+        return Command(type:commandType, data:commandData)
+    }
 }
-
